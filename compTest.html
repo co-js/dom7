@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>paging</title>
+    <link href="./paging.css" rel="stylesheet">
+</head>
+<body>
+<div class="paging"></div>
+<script src="dom7.js"></script>
+<script src="paging.js"></script>
+<script>
+    console.log($$.ck);
+    $$('.paging').createPage({
+        clickFn: function (currentPage) {
+            console.log(currentPage);
+        }
+    }).paging();
+</script>
+</body>
+</html>
