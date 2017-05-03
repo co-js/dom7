@@ -59,7 +59,7 @@
   }
 
   function dom7Ele(selector) {
-    this._events = {};
+    // this._events = {};
     var eleCollection = [];
     if (typeof selector === 'string') {
       if (selector.indexOf(',') !== -1) {
@@ -78,22 +78,21 @@
     toThis.apply(this, [eleCollection]);
   }
 
+  var globalEvents = {};
   window.$$ = function (selector) {
     var prototype = dom7Ele.prototype;
 
-    prototype._on = function (name, callback) {
-      var events = this._events,
+    var on = function (ele, name, callback) {
+      var events = globalEvents[ele] || (globalEvents[ele] = {}),
         list = events[name] || (events[name] = []);
       list.push(callback);
-      return this;
     };
 
-    prototype._off = function (name, callback) {
-      var events = this._events;
+    var off = function (ele, name, callback) {
+      var events = globalEvents[ele];
       // Remove *all* events
       if (!(name || callback)) {
-        events = {};
-        return this;
+        globalEvents[ele] = {};
       }
       var list = events[name];
       if (list) {
@@ -108,10 +107,9 @@
           delete events[name]
         }
       }
-      return this;
     };
 
-    prototype._emit = function (name, data) {
+    var emit = function (name, data) {
       var events = this._events;
       var list = events[name], fn;
       if (list) {
@@ -262,16 +260,18 @@
           }
         }
       }
-      this._on(type, handler);
+      on(this, type, handler);
       return this;
     };
 
     prototype.off = function (type, handler) {
-      var delEventMap = {};
+      var delEventMap = {},
+        events = globalEvents[this];
+      if (events === undefined) return this;
       if (!(type || handler)) {
-        delEventMap = this._events;
+        delEventMap = events;
       }
-      var list = this._events[type];
+      var list = events[type];
       if (list) {
         if (handler) {
           for (var i = list.length - 1; i >= 0; i--) {
@@ -280,14 +280,13 @@
             }
           }
         } else {
-          delEventMap[type] = this._events[type];
+          delEventMap[type] = events[type];
         }
       }
       var eles = this;
       for (var x = 0; x < eles.length; x++) {
         removeEleEvents(eles[x], delEventMap);
       }
-      this._off(type, handler);
       function removeEleEvents(ele, delEventMap) {
         for (var k in delEventMap) {
           if (delEventMap.hasOwnProperty(k)) {
@@ -303,6 +302,7 @@
         }
       }
 
+      off(this, type, handler);
       return this;
     };
 
@@ -329,8 +329,14 @@
 
     prototype.css = function (cssName, value) {
       var eles = this;
-      if (!(cssName || value)) {
-        return eles[0] && eles[0].style[cssName];
+      if (cssName && typeof cssName === 'string' && value === undefined) {
+        if (window.getComputedStyle) {
+          var compStyle = window.getComputedStyle(eles[0], "");
+        }
+        else {
+          var compStyle = eles[0].currentStyle;
+        }
+        return compStyle[cssName];
       }
       if (typeof cssName === 'string' && value) {
         for (var i = 0; i < eles.length; i++) {
@@ -672,4 +678,6 @@
     }
     return target;
   };
+
+  // $$.event=
 })(window);
