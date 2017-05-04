@@ -3,8 +3,16 @@
  */
 ;(function (window) {
   Array.prototype.contains = function (elem) {
-    for (var i in this) {
-      if (this[i] == elem) return true;
+    if (Object.prototype.toString.call(elem) == '[object Array]') {
+      for (var i in this) {
+        for (var j = 0; j < elem.length; j++) {
+          if (this[i] == elem[j]) return true;
+        }
+      }
+    } else {
+      for (var i in this) {
+        if (this[i] == elem) return true;
+      }
     }
     return false;
   };
@@ -51,6 +59,33 @@
     return getDom(searchEles, selectorList);
   }
 
+  /**
+   * 获取父元素
+   * @param elem
+   * @param selector
+   * @param parentNodes
+   * @param endElem
+   * @returns {*}
+   */
+  function getParents(elem, selector, parentNodes, endElem) {
+    if (elem === endElem) {
+      return parentNodes;
+    }
+    if (selector) {
+      if (/^#[A-Za-z][_\-\w]*$/.test(selector) && elem.id === selector.substring(1)) {
+        parentNodes.push(elem);
+      } else if (/^\.[A-Za-z][_\-\w]*$/.test(selector) && (elem.className || '').split(' ').contains(selector.substring(1))) {
+        parentNodes.push(elem);
+      } else if (/^[A-Za-z]+\.[A-Za-z][_\-\w]*$/.test(selector) && (elem.className || '').split(' ').contains(selector.substring(1))) {
+        parentNodes.push(elem);
+      }
+    } else {
+      parentNodes.push(elem);
+    }
+    elem = elem.parentNode;
+    getParents(elem, selector, parentNodes, endElem);
+  }
+
   function toThis(eleCollection) {
     for (var i = 0; i < eleCollection.length; i++) {
       this[i] = eleCollection[i];
@@ -78,50 +113,8 @@
     toThis.apply(this, [eleCollection]);
   }
 
-  var globalEvents = {};
   window.$$ = function (selector) {
     var prototype = dom7Ele.prototype;
-
-    var on = function (ele, name, callback) {
-      var events = globalEvents[ele] || (globalEvents[ele] = {}),
-        list = events[name] || (events[name] = []);
-      list.push(callback);
-    };
-
-    var off = function (ele, name, callback) {
-      var events = globalEvents[ele];
-      // Remove *all* events
-      if (!(name || callback)) {
-        globalEvents[ele] = {};
-      }
-      var list = events[name];
-      if (list) {
-        if (callback) {
-          for (var i = list.length - 1; i >= 0; i--) {
-            if (list[i] === callback) {
-              list.splice(i, 1)
-            }
-          }
-        }
-        else {
-          delete events[name]
-        }
-      }
-    };
-
-    var emit = function (name, data) {
-      var events = this._events;
-      var list = events[name], fn;
-      if (list) {
-        // Copy callback lists to prevent modification
-        list = list.slice();
-        // Execute event callbacks
-        while ((fn = list.shift())) {
-          fn(data)
-        }
-      }
-      return this;
-    };
 
     /**
      * 遍历选择器元素
@@ -162,6 +155,22 @@
     prototype.find = function (selector) {
       var eles = this;
       return new dom7Ele(getDom(eles, selector.split(' ')));
+    };
+
+    prototype.parent = function () {
+      var parentNodes = [];
+      this.each(function () {
+        parentNodes.push(this.parentNode);
+      });
+      return new dom7Ele(parentNodes);
+    };
+
+    prototype.parents = function (selector) {
+      var parentNodes = [];
+      this.each(function () {
+        getParents(this, selector, parentNodes, document.body);
+      });
+      return new dom7Ele(parentNodes);
     };
 
     var hasClass = function (eles, className) {
@@ -215,99 +224,27 @@
     };
 
     prototype.on = function (type, selector, handler) {
-      var eles = this;
-      // eventCollection=['click','blur',''];
-      if (selector && typeof selector === 'function' && handler === undefined) {
+      if (selector && typeof selector === 'function') {
         handler = selector;
-        for (var x = 0; x < eles.length; x++) {
-          var ele = eles[x];
-          if (ele.addEventListener) {
-            (function (ele) {
-              ele.addEventListener(type, function (event) {
-                handler.call(ele, event);
-              });
-            })(ele);
-          } else if (ele.attachEvent) {
-            (function (ele) {
-              ele.attachEvent('on' + type, function () {
-                handler.call(ele, window.event);
-              });
-            })(ele);
-          }
-        }
-      } else if (selector && handler && typeof handler === 'function') {
-        for (var x = 0; x < eles.length; x++) {
-          var ele = eles[x];
-          if (ele.addEventListener) {
-            (function (ele) {
-              ele.addEventListener(type, function (event) {
-                var selEle = getDom([ele], [selector]);
-                if (selEle.length && selEle.contains(event.target)) {
-                  handler.call(event.target, event);
-                }
-              });
-            })(ele);
-          } else if (ele.attachEvent) {
-            (function (ele) {
-              ele.attachEvent('on' + type, function () {
-                var event = window.event,
-                  selEle = getDom([ele], [selector]);
-                if (selEle.length && selEle.contains(event.target)) {
-                  handler.call(event.target, window.event);
-                }
-              });
-            })(ele);
-          }
-        }
+        selector = undefined;
       }
-      on(this, type, handler);
+      this.each(function () {
+        $$.event.add(this, type, handler, selector);
+      });
       return this;
     };
 
     prototype.off = function (type, handler) {
-      var delEventMap = {},
-        events = globalEvents[this];
-      if (events === undefined) return this;
-      if (!(type || handler)) {
-        delEventMap = events;
-      }
-      var list = events[type];
-      if (list) {
-        if (handler) {
-          for (var i = list.length - 1; i >= 0; i--) {
-            if (list[i] === handler) {
-              delEventMap[type] = [handler];
-            }
-          }
-        } else {
-          delEventMap[type] = events[type];
-        }
-      }
-      var eles = this;
-      for (var x = 0; x < eles.length; x++) {
-        removeEleEvents(eles[x], delEventMap);
-      }
-      function removeEleEvents(ele, delEventMap) {
-        for (var k in delEventMap) {
-          if (delEventMap.hasOwnProperty(k)) {
-            var handlerList = delEventMap[k];
-            for (var i = 0; i < handlerList.length; i++) {
-              if (ele.removeEventListener) {
-                ele.removeEventListener(k, handlerList[i]);
-              } else if (ele.detachEvent) {
-                ele.detachEvent('on' + k, handlerList[i]);
-              }
-            }
-          }
-        }
-      }
-
-      off(this, type, handler);
+      this.each(function () {
+        $$.event.remove(this, type, handler);
+      });
       return this;
     };
 
-    prototype.trigger = function () {
-
+    prototype.trigger = function (type, handler) {
+      this.each(function () {
+        $$.event.trigger(this, type, handler);
+      });
     };
 
     prototype.children = function (selector) {
@@ -679,5 +616,101 @@
     return target;
   };
 
-  // $$.event=
+  $$.event = {
+    add: function (elem, type, handler, selector) {
+      var events = elem.events || (elem.events = {}),
+        list = events[type] || (events[type] = []);
+
+      if (elem.addEventListener) {
+        var cloneHandler = function (event) {
+          if (selector) {
+            var selEle = getDom([elem], [selector]),
+              selectorParents = [];
+            // getParents(event.target, selector, selectorParents, elem);
+            // || selEle.contains(selectorParents)
+            if (selEle.length && (selEle.contains(event.target))) {
+              handler.call(event.target, event);
+            }
+          } else {
+            handler.call(elem, event);
+          }
+        };
+        elem.addEventListener(type, cloneHandler);
+      } else if (elem.attachEvent) {
+        var cloneHandler = function (event) {
+          var event = event || window.event;
+          if (selector) {
+            var selEle = getDom([elem], [selector]),
+              selectorParents = [];
+            getParents(event.target, selector, selectorParents, elem);
+            if (selEle.length && (selEle.contains(event.target) || selEle.contains(selectorParents))) {
+              handler.call(selectorParents[0], event);
+            }
+          } else {
+            handler.call(elem, event);
+          }
+        };
+        elem.attachEvent('on' + type, cloneHandler);
+      }
+      list.push(cloneHandler);
+    },
+
+    remove: function (elem, type, handler) {
+      // Remove *all* events
+      var removeEvents = {};
+      if (!(type || handler)) {
+        removeEvents = elem.events;
+        elem.events = {};
+      }
+
+      var list = elem.events && elem.events[type];
+      if (list) {
+        if (handler) {  //不支持删除具体某个handler
+          for (var i = list.length - 1; i >= 0; i--) {
+            if (list[i] === handler) {
+              list.splice(i, 1);
+              // removeEvents[type] = [handler];
+            }
+          }
+        }
+        else {
+          removeEvents[type] = elem.events[type];
+          delete elem.events[type]
+        }
+      }
+
+      for (var k in removeEvents) {
+        if (removeEvents.hasOwnProperty(k)) {
+          var handlerList = removeEvents[k];
+          for (var i = 0; i < handlerList.length; i++) {
+            if (elem.removeEventListener) {
+              elem.removeEventListener(k, handlerList[i]);
+            } else if (elem.detachEvent) {
+              elem.detachEvent('on' + k, handlerList[i]);
+            }
+          }
+        }
+      }
+    },
+    trigger: function (elem, type, handler) {
+      var target = elem;
+
+      function some(elem) {
+        if (elem.tagName === 'BODY') return;
+        var handlerList = elem.events && elem.events[type];
+        if (handlerList) {
+          if (handler) {
+
+          } else {
+            for (var i = 0; i < handlerList.length; i++) {
+              handlerList[i].call(target, {target: target});
+            }
+          }
+        }
+        some(elem.parentNode);
+      }
+
+      some(elem);
+    }
+  }
 })(window);
