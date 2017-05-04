@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+<a class="off">click here</a>
+
+<script src="dom7.js"></script>
+<script>
+        $$('.off').on('click', function () {
+            alert('我的老家，在哪儿');
+        });
+        $$('.off').off('click');
+//    var callback = function () {
+    //        alert('我的老家');
+    //    };
+    //    var c = callback;
+    //    $$('.off')[0].addEventListener('click', callback);
+    //    $$('.off')[0].removeEventListener('click', c);
+</script>
+</body>
+</html>
