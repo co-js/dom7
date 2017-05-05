@@ -83,17 +83,17 @@
       parentNodes.push(elem);
     }
     elem = elem.parentNode;
-    getParents(elem, selector, parentNodes, endElem);
+    return getParents(elem, selector, parentNodes, endElem);
   }
 
-  function toThis(eleCollection) {
+  function dom7(eleCollection) {
     for (var i = 0; i < eleCollection.length; i++) {
       this[i] = eleCollection[i];
     }
     this.length = eleCollection.length;
   }
 
-  function dom7Ele(selector) {
+  window.$$ = function (selector, context) {
     // this._events = {};
     var eleCollection = [];
     if (typeof selector === 'string') {
@@ -103,358 +103,481 @@
         var selectorArray = [selector];
       }
       for (var i = 0; i < selectorArray.length; i++) {
-        eleCollection = eleCollection.concat(getDom([document], selectorArray[i].split(' ')));
+        eleCollection = eleCollection.concat(getDom([context || document], selectorArray[i].split(' ')));
       }
     } else if (Object.prototype.toString.call(selector) == '[object Array]') {
       eleCollection = selector;
     } else if (typeof selector === 'object') {
       eleCollection = [selector];
     }
-    toThis.apply(this, [eleCollection]);
-  }
+    return new dom7(eleCollection);
+  };
 
-  window.$$ = function (selector) {
-    var prototype = dom7Ele.prototype;
+  var prototype = dom7.prototype;
+
+  /**
+   * 遍历选择器元素
+   * @param done
+   */
+  prototype.each = function (done) {
+    var eles = this;
+    if (done && typeof done === 'function') {
+      for (var x = 0; x < eles.length; x++) {
+        (function (ele, index) {
+          done.call(ele, index);
+        })(eles[x], x);
+      }
+    }
+    return this;
+  };
+
+  prototype.siblings = function (selector) {
+    var eles = this,
+      siblingEles = [];
+    for (var x = 0; x < eles.length; x++) {
+      var children = eles[x].parentNode.children;
+      for (var i = 0; i < children.length; i++) {
+        if (selector) {
+          if (children[i] !== eles[x] && hasClass([children[i]], selector)) {
+            siblingEles.push(children[i]);
+          }
+        } else {
+          if (children[i] !== eles[x]) {
+            siblingEles.push(children[i]);
+          }
+        }
+      }
+    }
+    return $$(siblingEles);
+  };
+
+  prototype.find = function (selector) {
+    var foundElements = [];
+    var found = getDom(this, selector.split(' '));
+    for (var j = 0; j < found.length; j++) {
+      foundElements.push(found[j]);
+    }
+    return new $$(foundElements);
+  };
+
+  prototype.parent = function () {
+    var parentNodes = [];
+    this.each(function () {
+      parentNodes.push(this.parentNode);
+    });
+    return $$(parentNodes);
+  };
+
+  prototype.is = function (selector) {
+    if (!this[0]) return false;
+    var compareWith, i;
+    if (typeof selector === 'string') {
+      var el = this[0];
+      if (el === document) return selector === document;
+      if (el === window) return selector === window;
+
+      if (el.matches) return el.matches(selector);
+      else if (el.webkitMatchesSelector) return el.webkitMatchesSelector(selector);
+      else if (el.mozMatchesSelector) return el.mozMatchesSelector(selector);
+      else if (el.msMatchesSelector) return el.msMatchesSelector(selector);
+      else {
+        compareWith = $$(selector);
+        for (i = 0; i < compareWith.length; i++) {
+          if (compareWith[i] === this[0]) return true;
+        }
+        return false;
+      }
+    }
+    else if (selector === document) return this[0] === document;
+    else if (selector === window) return this[0] === window;
+    else {
+      if (selector.nodeType || selector instanceof dom7Ele) {
+        compareWith = selector.nodeType ? [selector] : selector;
+        for (i = 0; i < compareWith.length; i++) {
+          if (compareWith[i] === this[0]) return true;
+        }
+        return false;
+      }
+      return false;
+    }
+  };
+
+  prototype.parents = function (selector) {
+    var parents = [];
+    for (var i = 0; i < this.length; i++) {
+      var parent = this[i].parentNode;
+      while (parent) {
+        if (selector) {
+          if ($$(parent).is(selector)) parents.push(parent);
+        }
+        else {
+          parents.push(parent);
+        }
+        parent = parent.parentNode;
+      }
+    }
+    return $$(parents);
+  };
+
+  // prototype.parents = function (selector) {
+  //   var parentNodes = [];
+  //   this.each(function () {
+  //     getParents(this, selector, parentNodes, document.body);
+  //   });
+  //   return $$(parentNodes);
+  // };
+
+  var hasClass = function (eles, className) {
+    for (var x = 0; x < eles.length; x++) {
+      var ele = eles[x],
+        classList;
+      if (ele.classList) {
+        classList = ele.classList;
+      } else {
+        var classStr = ele.className;
+        classList = (classStr || '').split(' ');
+      }
+      if (!classList.contains(className)) return false;
+    }
+    return true;
+  };
+
+  prototype.hasClass = function (className) {
+    return hasClass(this, className);
+  };
+
+  prototype.addClass = function (className) {
+    var eles = this;
+    for (var x = 0; x < eles.length; x++) {
+      var ele = eles[x];
+      if (ele.classList) {
+        ele.classList.add(className);
+      } else {
+        var classStr = ele.className;
+        classArray = classStr ? classStr.split(' ') : [];
+        classArray.push(className);
+        ele.className = classArray.join(' ');
+      }
+    }
+    return this;
+  };
+
+  prototype.removeClass = function (className) {
+    var eles = this;
+    for (var x = 0; x < eles.length; x++) {
+      var ele = eles[x];
+      if (ele.classList) {
+        ele.classList.remove(className);
+      } else {
+        var classStr = ele.className,
+          classArray = classStr ? classStr.split(' ') : [];
+        classArray.remove(className);
+        ele.className = classArray.join(' ');
+      }
+    }
+  };
+
+  prototype.on = function (eventName, targetSelector, listener, capture) {
+    function handleLiveEvent(e) {
+      var target = e.target;
+      if ($$(target).is(targetSelector)) listener.call(target, e);
+      else {
+        var parents = $$(target).parents();
+        for (var k = 0; k < parents.length; k++) {
+          if ($$(parents[k]).is(targetSelector)) listener.call(parents[k], e);
+        }
+      }
+    }
+
+    var events = eventName.split(' ');
+    var i, j;
+    for (i = 0; i < this.length; i++) {
+      if (typeof targetSelector === 'function' || targetSelector === undefined) {
+        // Usual events
+        if (typeof targetSelector === 'function') {
+          listener = arguments[1];
+          capture = arguments[2] || false;
+        }
+        for (j = 0; j < events.length; j++) {
+          if (!this[i].dom7LiveListeners) this[i].dom7LiveListeners = [];
+          this[i].addEventListener(events[j], listener, capture);
+          this[i].dom7LiveListeners.push({listener: listener});
+        }
+      }
+      else {
+        //Live events
+        for (j = 0; j < events.length; j++) {
+          if (!this[i].dom7LiveListeners) this[i].dom7LiveListeners = [];
+          this[i].dom7LiveListeners.push({listener: listener, liveListener: handleLiveEvent});
+          this[i].addEventListener(events[j], handleLiveEvent, capture);
+        }
+      }
+    }
+    return this;
+  };
+
+  prototype.off = function (eventName, targetSelector, listener, capture) {
+    var events = eventName.split(' ');
+    for (var i = 0; i < events.length; i++) {
+      for (var j = 0; j < this.length; j++) {
+        if (typeof targetSelector === 'function' || targetSelector === undefined) {
+          // Usual events
+          if (typeof targetSelector === 'function') {
+            listener = arguments[1];
+            capture = arguments[2] || false;
+          }
+          if (listener === undefined) {
+            if (this[j].dom7LiveListeners) {
+              for (var k = 0; k < this[j].dom7LiveListeners.length; k++) {
+                if (this[j].dom7LiveListeners[k].liveListener) {
+                  this[j].removeEventListener(events[i], this[j].dom7LiveListeners[k].liveListener, capture);
+                } else {
+                  this[j].removeEventListener(events[i], this[j].dom7LiveListeners[k].listener, capture);
+                }
+              }
+            }
+          } else {
+            this[j].removeEventListener(events[i], listener, capture);
+          }
+        }
+        else {
+          // Live event
+          if (this[j].dom7LiveListeners) {
+            for (var k = 0; k < this[j].dom7LiveListeners.length; k++) {
+              if (this[j].dom7LiveListeners[k].listener === listener) {
+                this[j].removeEventListener(events[i], this[j].dom7LiveListeners[k].liveListener, capture);
+              }
+            }
+          }
+        }
+      }
+    }
+    return this;
+  }
+  ;
+
+  prototype.trigger = function (eventName, eventData) {
+    for (var i = 0; i < this.length; i++) {
+      var evt;
+      try {
+        evt = new window.CustomEvent(eventName, {detail: eventData, bubbles: true, cancelable: true});
+      }
+      catch (e) {
+        evt = document.createEvent('Event');
+        evt.initEvent(eventName, true, true);
+        evt.detail = eventData;
+      }
+      this[i].dispatchEvent(evt);
+    }
+    return this;
+  };
+
+  prototype.children = function (selector) {
+    var childrenCollection = [];
+    for (var i = 0; i < this.length; i++) {
+      if (this[i].children) {
+        childrenCollection = childrenCollection.concat(this[i].children);
+      } else {
+        for (var i = 0; i < this[i].childNodes.length; i++) {
+          var child = this[i].childNodes[i];
+          if (child.nodeType == 1 /*Node.ELEMENT_NODE*/) {
+            childrenCollection.push(child);
+          }
+        }
+      }
+    }
+    return $$(childrenCollection);
+  };
+
+  prototype.css = function (cssName, value) {
+    var eles = this;
+    if (cssName && typeof cssName === 'string' && value === undefined) {
+      if (window.getComputedStyle) {
+        var compStyle = window.getComputedStyle(eles[0], "");
+      }
+      else {
+        var compStyle = eles[0].currentStyle;
+      }
+      return compStyle[cssName];
+    }
+    if (typeof cssName === 'string' && value) {
+      for (var i = 0; i < eles.length; i++) {
+        eles[i].style[cssName] = value;
+      }
+    } else if (typeof cssName === 'object') {
+      for (var i = 0; i < eles.length; i++) {
+        for (var key in cssName) {
+          if (object.hasOwnProperty(key)) {
+            eles[i].style[key] = cssName[key];
+          }
+        }
+      }
+    }
+  };
+
+  prototype.attr = function (name, value) {
+    var eles = this;
+    if (value === undefined) {
+      return eles[0].getAttribute(name);
+    } else {
+      eles[0].setAttribute(name, value);
+    }
+  };
+
+  prototype.width = function () {
+    /**
+     * 获取元素的宽度
+     * @param el
+     * @returns {number}
+     */
+    function getWidth(el) {
+      if (window.getComputedStyle) {
+        var styles = window.getComputedStyle(el);
+      }
+      else {
+        var styles = window.currentStyle;
+      }
+      var width = el.offsetWidth;
+      var borderLeftWidth = parseFloat(styles.borderLeftWidth);
+      var borderRightWidth = parseFloat(styles.borderRightWidth);
+      var paddingLeft = parseFloat(styles.paddingLeft);
+      var paddingRight = parseFloat(styles.paddingRight);
+      return width - borderLeftWidth - borderRightWidth - paddingLeft - paddingRight;
+    }
+
+    var eles = this;
+    if (arguments.length === 0) {
+      var ele = eles[0];
+      if (ele === window) {
+        return ele.innerWidth;
+      } else {
+        return getWidth(ele);
+      }
+    }
+  };
+
+  prototype.height = function () {
+    /**
+     * 获取元素的高度
+     * @param el
+     * @returns {number}
+     */
+    function getHeight(el) {
+      if (window.getComputedStyle) {
+        var styles = window.getComputedStyle(el);
+      }
+      else {
+        var styles = window.currentStyle;
+      }
+      var height = el.offsetHeight;
+      var borderTopWidth = parseFloat(styles.borderTopWidth);
+      var borderBottomWidth = parseFloat(styles.borderBottomWidth);
+      var paddingTop = parseFloat(styles.paddingTop);
+      var paddingBottom = parseFloat(styles.paddingBottom);
+      return height - borderTopWidth - borderBottomWidth - paddingTop - paddingBottom;
+    }
 
     /**
-     * 遍历选择器元素
-     * @param done
+     * 获取文档的高度
+     * @returns {number}
      */
-    prototype.each = function (done) {
-      var eles = this;
-      if (done && typeof done === 'function') {
-        for (var x = 0; x < eles.length; x++) {
-          (function (ele, index) {
-            done.call(ele, index);
-          })(eles[x], x);
-        }
-      }
-      return this;
-    };
+    function getDocumentHeight() {
+      var body = document.body;
+      var html = document.documentElement;
+      return Math.max(
+        body.offsetHeight,
+        body.scrollHeight,
+        html.clientHeight,
+        html.offsetHeight,
+        html.scrollHeight
+      );
+    }
 
-    prototype.siblings = function (selector) {
-      var eles = this,
-        siblingEles = [];
-      for (var x = 0; x < eles.length; x++) {
-        var children = eles[x].parentNode.children;
-        for (var i = 0; i < children.length; i++) {
-          if (selector) {
-            if (children[i] !== eles[x] && hasClass([children[i]], selector)) {
-              siblingEles.push(children[i]);
-            }
-          } else {
-            if (children[i] !== eles[x]) {
-              siblingEles.push(children[i]);
-            }
-          }
-        }
-      }
-      return new dom7Ele(siblingEles);
-    };
-
-    prototype.find = function (selector) {
-      var eles = this;
-      return new dom7Ele(getDom(eles, selector.split(' ')));
-    };
-
-    prototype.parent = function () {
-      var parentNodes = [];
-      this.each(function () {
-        parentNodes.push(this.parentNode);
-      });
-      return new dom7Ele(parentNodes);
-    };
-
-    prototype.parents = function (selector) {
-      var parentNodes = [];
-      this.each(function () {
-        getParents(this, selector, parentNodes, document.body);
-      });
-      return new dom7Ele(parentNodes);
-    };
-
-    var hasClass = function (eles, className) {
-      for (var x = 0; x < eles.length; x++) {
-        var ele = eles[x],
-          classList;
-        if (ele.classList) {
-          classList = ele.classList;
-        } else {
-          var classStr = ele.className;
-          classList = (classStr || '').split(' ');
-        }
-        if (!classList.contains(className)) return false;
-      }
-      return true;
-    };
-
-    prototype.hasClass = function (className) {
-      return hasClass(this, className);
-    };
-
-    prototype.addClass = function (className) {
-      var eles = this;
-      for (var x = 0; x < eles.length; x++) {
-        var ele = eles[x];
-        if (ele.classList) {
-          ele.classList.add(className);
-        } else {
-          var classStr = ele.className,
-            classArray = classStr ? classStr.split(' ') : [];
-          classArray.push(className);
-          ele.className = classArray.join(' ');
-        }
-      }
-      return this;
-    };
-
-    prototype.removeClass = function (className) {
-      var eles = this;
-      for (var x = 0; x < eles.length; x++) {
-        var ele = eles[x];
-        if (ele.classList) {
-          ele.classList.remove(className);
-        } else {
-          var classStr = ele.className,
-            classArray = classStr ? classStr.split(' ') : [];
-          classArray.remove(className);
-          ele.className = classArray.join(' ');
-        }
-      }
-    };
-
-    prototype.on = function (type, selector, handler) {
-      if (selector && typeof selector === 'function') {
-        handler = selector;
-        selector = undefined;
-      }
-      this.each(function () {
-        $$.event.add(this, type, handler, selector);
-      });
-      return this;
-    };
-
-    prototype.off = function (type, handler) {
-      this.each(function () {
-        $$.event.remove(this, type, handler);
-      });
-      return this;
-    };
-
-    prototype.trigger = function (type, handler) {
-      this.each(function () {
-        $$.event.trigger(this, type, handler);
-      });
-    };
-
-    prototype.children = function (selector) {
-      var childrenCollection = [];
-      for (var i = 0; i < this.length; i++) {
-        if (this[i].children) {
-          childrenCollection = childrenCollection.concat(this[i].children);
-        } else {
-          for (var i = 0; i < this[i].childNodes.length; i++) {
-            var child = this[i].childNodes[i];
-            if (child.nodeType == 1 /*Node.ELEMENT_NODE*/) {
-              childrenCollection.push(child);
-            }
-          }
-        }
-      }
-      return new dom7Ele(childrenCollection);
-    };
-
-    prototype.css = function (cssName, value) {
-      var eles = this;
-      if (cssName && typeof cssName === 'string' && value === undefined) {
-        if (window.getComputedStyle) {
-          var compStyle = window.getComputedStyle(eles[0], "");
-        }
-        else {
-          var compStyle = eles[0].currentStyle;
-        }
-        return compStyle[cssName];
-      }
-      if (typeof cssName === 'string' && value) {
-        for (var i = 0; i < eles.length; i++) {
-          eles[i].style[cssName] = value;
-        }
-      } else if (typeof cssName === 'object') {
-        for (var i = 0; i < eles.length; i++) {
-          for (var key in cssName) {
-            if (object.hasOwnProperty(key)) {
-              eles[i].style[key] = cssName[key];
-            }
-          }
-        }
-      }
-    };
-
-    prototype.attr = function (name, value) {
-      var eles = this;
-      if (value === undefined) {
-        return eles[0].getAttribute(name);
+    var eles = this;
+    if (arguments.length === 0) {
+      var ele = eles[0];
+      if (ele === window) {
+        return ele.innerHeight;
+      } else if (ele === document) {
+        return getDocumentHeight();
       } else {
-        eles[0].setAttribute(name, value);
+        return getHeight(ele);
       }
-    };
-
-    prototype.width = function () {
-      /**
-       * 获取元素的宽度
-       * @param el
-       * @returns {number}
-       */
-      function getWidth(el) {
-        if (window.getComputedStyle) {
-          var styles = window.getComputedStyle(el);
-        }
-        else {
-          var styles = window.currentStyle;
-        }
-        var width = el.offsetWidth;
-        var borderLeftWidth = parseFloat(styles.borderLeftWidth);
-        var borderRightWidth = parseFloat(styles.borderRightWidth);
-        var paddingLeft = parseFloat(styles.paddingLeft);
-        var paddingRight = parseFloat(styles.paddingRight);
-        return width - borderLeftWidth - borderRightWidth - paddingLeft - paddingRight;
-      }
-
-      var eles = this;
-      if (arguments.length === 0) {
-        var ele = eles[0];
-        if (ele === window) {
-          return ele.innerWidth;
-        } else {
-          return getWidth(ele);
-        }
-      }
-    };
-
-    prototype.height = function () {
-      /**
-       * 获取元素的高度
-       * @param el
-       * @returns {number}
-       */
-      function getHeight(el) {
-        if (window.getComputedStyle) {
-          var styles = window.getComputedStyle(el);
-        }
-        else {
-          var styles = window.currentStyle;
-        }
-        var height = el.offsetHeight;
-        var borderTopWidth = parseFloat(styles.borderTopWidth);
-        var borderBottomWidth = parseFloat(styles.borderBottomWidth);
-        var paddingTop = parseFloat(styles.paddingTop);
-        var paddingBottom = parseFloat(styles.paddingBottom);
-        return height - borderTopWidth - borderBottomWidth - paddingTop - paddingBottom;
-      }
-
-      /**
-       * 获取文档的高度
-       * @returns {number}
-       */
-      function getDocumentHeight() {
-        var body = document.body;
-        var html = document.documentElement;
-        return Math.max(
-          body.offsetHeight,
-          body.scrollHeight,
-          html.clientHeight,
-          html.offsetHeight,
-          html.scrollHeight
-        );
-      }
-
-      var eles = this;
-      if (arguments.length === 0) {
-        var ele = eles[0];
-        if (ele === window) {
-          return ele.innerHeight;
-        } else if (ele === document) {
-          return getDocumentHeight();
-        } else {
-          return getHeight(ele);
-        }
-      }
-    };
-
-    prototype.html = function () {
-      var eles = this;
-      if (arguments.length === 0) {
-        return eles[0].innerHTML;
-      } else {
-        for (var i = 0; i < eles.length; i++) {
-          eles[i].innerHTML = arguments[0];
-        }
-        return this;
-      }
-    };
-
-    prototype.val = function () {
-      var eles = this;
-      if (arguments.length === 0) {
-        return eles[0].value;
-      } else {
-        for (var i = 0; i < eles.length; i++) {
-          eles[i].value = arguments[0];
-        }
-        return this;
-      }
-    };
-
-    prototype.text = function () {
-      var eles = this;
-      if (arguments.length === 0) {
-        return eles[0].textContent;
-      } else {
-        for (var i = 0; i < eles.length; i++) {
-          eles[i].textContent = arguments[0];
-        }
-        return this;
-      }
-    };
-
-    prototype.empty = function () {
-      for (var i = 0; i < this.length; i++) {
-        this[i].innerHTML = '';
-      }
-    };
-
-    prototype.remove = function (selector) {
-      var eles = getDom(this, [selector]);
-      for (var i = 0; i < eles.length; i++) {
-        eles[i].parentNode.removeChild(eles[i]);
-      }
-    };
-
-    prototype.append = function () {
-      var that = this;
-      for (var i = 0; i < arguments.length; i++) {
-        var content = arguments[i];
-        if (typeof content === 'string') {
-          stringAppend(content);
-        }
-      }
-
-      function stringAppend(content) {
-        for (var i = 0; i < that.length; i++) {
-          if (that[i].insertAdjacentHTML) {
-            that[i].insertAdjacentHTML('beforeend', content);
-          } else {
-            var range = document.createRange();
-            var docFragmentToInsert = range.createContextualFragment(content);
-            that[i].appendChild(docFragmentToInsert);
-          }
-        }
-      }
-    };
-
-    return new dom7Ele(selector);
+    }
   };
-  $$.ck = dom7Ele.prototype = {};
+
+  prototype.html = function () {
+    var eles = this;
+    if (arguments.length === 0) {
+      return eles[0].innerHTML;
+    } else {
+      for (var i = 0; i < eles.length; i++) {
+        eles[i].innerHTML = arguments[0];
+      }
+      return this;
+    }
+  };
+
+  prototype.val = function () {
+    var eles = this;
+    if (arguments.length === 0) {
+      return eles[0].value;
+    } else {
+      for (var i = 0; i < eles.length; i++) {
+        eles[i].value = arguments[0];
+      }
+      return this;
+    }
+  };
+
+  prototype.text = function () {
+    var eles = this;
+    if (arguments.length === 0) {
+      return eles[0].textContent;
+    } else {
+      for (var i = 0; i < eles.length; i++) {
+        eles[i].textContent = arguments[0];
+      }
+      return this;
+    }
+  };
+
+  prototype.empty = function () {
+    for (var i = 0; i < this.length; i++) {
+      this[i].innerHTML = '';
+    }
+  };
+
+  prototype.remove = function (selector) {
+    var eles = getDom(this, [selector]);
+    for (var i = 0; i < eles.length; i++) {
+      eles[i].parentNode.removeChild(eles[i]);
+    }
+  };
+
+  prototype.append = function () {
+    var that = this;
+    for (var i = 0; i < arguments.length; i++) {
+      var content = arguments[i];
+      if (typeof content === 'string') {
+        stringAppend(content);
+      }
+    }
+
+    function stringAppend(content) {
+      for (var i = 0; i < that.length; i++) {
+        if (that[i].insertAdjacentHTML) {
+          that[i].insertAdjacentHTML('beforeend', content);
+        } else {
+          var range = document.createRange();
+          var docFragmentToInsert = range.createContextualFragment(content);
+          that[i].appendChild(docFragmentToInsert);
+        }
+      }
+    }
+  };
+
+  $$.ck = dom7.prototype;
   /**
    * ajax 请求
    */
@@ -615,101 +738,4 @@
     }
     return target;
   };
-
-  $$.event = {
-    add: function (elem, type, handler, selector) {
-      var events = elem.events || (elem.events = {}),
-        list = events[type] || (events[type] = []);
-
-      if (elem.addEventListener) {
-        var cloneHandler = function (event) {
-          if (selector) {
-            var selEle = getDom([elem], [selector]),
-              selectorParents = [];
-            getParents(event.target, selector, selectorParents, elem);
-            if (selEle.length && (selEle.contains(event.target) || selEle.contains(selectorParents))) {
-              handler.call(event.target, event);
-            }
-          } else {
-            handler.call(elem, event);
-          }
-        };
-        elem.addEventListener(type, cloneHandler);
-      } else if (elem.attachEvent) {
-        var cloneHandler = function (event) {
-          var event = event || window.event;
-          if (selector) {
-            var selEle = getDom([elem], [selector]),
-              selectorParents = [];
-            getParents(event.target, selector, selectorParents, elem);
-            if (selEle.length && (selEle.contains(event.target) || selEle.contains(selectorParents))) {
-              handler.call(selectorParents[0], event);
-            }
-          } else {
-            handler.call(elem, event);
-          }
-        };
-        elem.attachEvent('on' + type, cloneHandler);
-      }
-      list.push(cloneHandler);
-    },
-
-    remove: function (elem, type, handler) {
-      // Remove *all* events
-      var removeEvents = {};
-      if (!(type || handler)) {
-        removeEvents = elem.events;
-        elem.events = {};
-      }
-
-      var list = elem.events && elem.events[type];
-      if (list) {
-        if (handler) {  //不支持删除具体某个handler
-          for (var i = list.length - 1; i >= 0; i--) {
-            if (list[i] === handler) {
-              list.splice(i, 1);
-              // removeEvents[type] = [handler];
-            }
-          }
-        }
-        else {
-          removeEvents[type] = elem.events[type];
-          delete elem.events[type]
-        }
-      }
-
-      for (var k in removeEvents) {
-        if (removeEvents.hasOwnProperty(k)) {
-          var handlerList = removeEvents[k];
-          for (var i = 0; i < handlerList.length; i++) {
-            if (elem.removeEventListener) {
-              elem.removeEventListener(k, handlerList[i]);
-            } else if (elem.detachEvent) {
-              elem.detachEvent('on' + k, handlerList[i]);
-            }
-          }
-        }
-      }
-    },
-    trigger: function (elem, type, handler) {
-      var target = elem;
-
-      function some(elem) {
-        if (elem.tagName === 'BODY') return;
-        var handlerList = elem.events && elem.events[type];
-        if (handlerList) {
-          if (handler) {
-
-          } else {
-            for (var i = 0; i < handlerList.length; i++) {
-              handlerList[i].call(target, {target: target});
-            }
-          }
-        }
-        some(elem.parentNode);
-      }
-
-      some(elem);
-    }
-  }
 })(window);
