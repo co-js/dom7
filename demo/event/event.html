@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Title</title>
+</head>
+<body>
+<div>
+  <a class="trigger">click here</a>
+</div>
+<div>
+  <button>off A click event</button>
+</div>
+<script src="../../src/dom7.js"></script>
+<script>
+  $$('.trigger').on('click', function () {
+    alert('you ware clicked here!');
+  });
+
+  $$('button').on('click', function () {
+    $$('.trigger').off('click');
+  });
+</script>
+</body>
+</html>

@@ -62,7 +62,7 @@
     },
     //翻页事件绑定
     bindEvent: function (obj, args) {
-      obj.off();
+      obj.off("click");
       obj.on("click", "a.tcdNumber", function () {
         var current = parseInt($(this).text());
         ms.fillHtml(obj, {"current": current, "pageCount": args.pageCount});
