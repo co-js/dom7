@@ -24,5 +24,8 @@ https://jsfiddle.net/common/qc3414r3/
 所以如果对这个库感兴趣，你不应该直接使用它，而是应该学习下源码并在此基础上改写，并更适合你的项目要求，
 这并不太难。
 
+### 使用的项目
+[汇聘官网](http://www.hitalen.com/)
+
 ### 浏览器支持
 IE9+,chrome,safari,firefox等。
