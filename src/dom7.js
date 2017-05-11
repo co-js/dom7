@@ -131,10 +131,6 @@
     return this;
   };
 
-  /**
-   * 获取兄弟元素
-   * @param selector 兄弟元素选择器(目前只支持类选择器)
-   */
   prototype.siblings = function (selector) {
     var eles = this,
       siblingEles = [];
@@ -155,11 +151,6 @@
     return $$(siblingEles);
   };
 
-  /**
-   * 寻找子元素
-   * @param selector 子元素选择器
-   * @returns {Window.$$}
-   */
   prototype.find = function (selector) {
     var foundElements = [];
     var found = getDom(this, selector.split(' '));
@@ -169,9 +160,6 @@
     return new $$(foundElements);
   };
 
-  /**
-   * 获取元素直接父元素
-   */
   prototype.parent = function () {
     var parentNodes = [];
     this.each(function () {
@@ -180,11 +168,6 @@
     return $$(parentNodes);
   };
 
-  /**
-   * 判断元素相等
-   * @param selector
-   * @returns {*}
-   */
   prototype.is = function (selector) {
     if (!this[0]) return false;
     var compareWith, i;
@@ -219,10 +202,6 @@
     }
   };
 
-  /**
-   * 获取父元素
-   * @param selector
-   */
   prototype.parents = function (selector) {
     var parents = [];
     for (var i = 0; i < this.length; i++) {
@@ -240,12 +219,14 @@
     return $$(parents);
   };
 
-  /**
-   * 是否有某个类名
-   * @param eles
-   * @param className
-   * @returns {boolean}
-   */
+  // prototype.parents = function (selector) {
+  //   var parentNodes = [];
+  //   this.each(function () {
+  //     getParents(this, selector, parentNodes, document.body);
+  //   });
+  //   return $$(parentNodes);
+  // };
+
   var hasClass = function (eles, className) {
     for (var x = 0; x < eles.length; x++) {
       var ele = eles[x],
@@ -261,11 +242,6 @@
     return true;
   };
 
-  /**
-   *
-   * @param className
-   * @returns {boolean}
-   */
   prototype.hasClass = function (className) {
     return hasClass(this, className);
   };
@@ -377,7 +353,8 @@
       }
     }
     return this;
-  };
+  }
+  ;
 
   prototype.trigger = function (eventName, eventData) {
     for (var i = 0; i < this.length; i++) {
@@ -430,7 +407,7 @@
     } else if (typeof cssName === 'object') {
       for (var i = 0; i < eles.length; i++) {
         for (var key in cssName) {
-          if (object.hasOwnProperty(key)) {
+          if (cssName.hasOwnProperty(key)) {
             eles[i].style[key] = cssName[key];
           }
         }
@@ -468,11 +445,16 @@
       return width - borderLeftWidth - borderRightWidth - paddingLeft - paddingRight;
     }
 
+    var iOS9 = function () {
+      var deviceAgent = navigator.userAgent.toLowerCase();
+      return /(iphone|ipod|ipad).* os 9_/.test(deviceAgent);
+    };
+
     var eles = this;
     if (arguments.length === 0) {
       var ele = eles[0];
       if (ele === window) {
-        return ele.innerWidth;
+        return iOS9() ? document.documentElement.clientWidth : ele.innerWidth;
       } else {
         return getWidth(ele);
       }
@@ -553,10 +535,6 @@
     }
   };
 
-  /**
-   * 获取元素的文本内容
-   * @returns {dom7.text}
-   */
   prototype.text = function () {
     var eles = this;
     if (arguments.length === 0) {
@@ -569,19 +547,12 @@
     }
   };
 
-  /**
-   * 清空元素内容
-   */
   prototype.empty = function () {
     for (var i = 0; i < this.length; i++) {
       this[i].innerHTML = '';
     }
   };
 
-  /**
-   * 删除某个子元素
-   * @param selector 子元素选择器
-   */
   prototype.remove = function (selector) {
     var eles = getDom(this, [selector]);
     for (var i = 0; i < eles.length; i++) {

@@ -1,0 +1,34 @@
+{
+  "name": "dom7",
+  "version": "1.0.0",
+  "description": "a jquery-like library for dom operation",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/co-js/dom7.git"
+  },
+  "keywords": [
+    "jquery-like",
+    "library",
+    "dom"
+  ],
+  "author": "common",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/co-js/dom7/issues"
+  },
+  "homepage": "https://github.com/co-js/dom7#readme",
+  "devDependencies": {
+    "del": "^2.2.0",
+    "gulp": "^3.9.1",
+    "gulp-concat": "^2.6.0",
+    "gulp-rename": "^1.2.2",
+    "gulp-uglify": "^2.0.0"
+  }
+}
